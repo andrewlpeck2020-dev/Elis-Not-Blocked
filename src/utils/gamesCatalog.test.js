@@ -11,10 +11,10 @@ import {
 
 test('parseIframeEntry extracts src and attributes from iframe HTML string', () => {
   const result = parseIframeEntry(
-    '<iframe src="/games/crimson-viper.html" title="Crimson Viper" allowfullscreen loading="lazy"></iframe>'
+    '<iframe src="./games/crimson-viper.html" title="Crimson Viper" allowfullscreen loading="lazy"></iframe>'
   );
   assert.equal(result.valid, true);
-  assert.equal(result.src, '/games/crimson-viper.html');
+  assert.equal(result.src, './games/crimson-viper.html');
   assert.equal(result.title, 'Crimson Viper');
   assert.equal(result.allowFullscreen, true);
 });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { EyeOff, Play } from 'lucide-react';
 
-const HERO_IMAGE = '/src/assets/images/hero_arcade_backdrop_1795477217425.jpg';
+const HERO_IMAGE = './src/assets/images/hero_arcade_backdrop_1795477217425.jpg';
 
 export function HeroSpotlight({
   featuredGame,

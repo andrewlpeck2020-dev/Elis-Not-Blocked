@@ -57,7 +57,7 @@ export default function App() {
     setLoading(true);
     setLoadError(null);
     try {
-      const response = await fetch('/games.json');
+      const response = await fetch('./games.json');
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }

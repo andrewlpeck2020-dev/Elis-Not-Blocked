@@ -10,8 +10,8 @@ export function isSafeIframeSrc(rawUrl) {
     return false;
   }
 
-  // Allow relative local paths such as /games/crimson-viper.html
-  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+  // Allow relative local paths such as ./games/crimson-viper.html or /games/crimson-viper.html
+  if ((trimmed.startsWith('./') || (trimmed.startsWith('/') && !trimmed.startsWith('//')))) {
     return !trimmed.includes('..');
   }
 

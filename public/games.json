@@ -5,8 +5,8 @@
     "category": "Arcade",
     "controls": "WASD / Arrow Keys",
     "description": "Steer the cybernetic serpent across the obsidian grid, harvest red energy cores, and dodge the perimeter walls.",
-    "thumbnail": "/src/assets/images/game_crimson_viper_1795477217564.jpg",
-    "iframe": "<iframe src=\"/games/crimson-viper.html\" title=\"Crimson Viper\" allowfullscreen loading=\"lazy\"></iframe>",
+    "thumbnail": "./src/assets/images/game_crimson_viper_1795477217564.jpg",
+    "iframe": "<iframe src=\"./games/crimson-viper.html\" title=\"Crimson Viper\" allowfullscreen loading=\"lazy\"></iframe>",
     "featured": true
   },
   {
@@ -15,8 +15,8 @@
     "category": "Action",
     "controls": "A/D or Left/Right",
     "description": "Pilot a delta interceptor at escalating speed through narrow obsidian blockades with near-miss score combos.",
-    "thumbnail": "/src/assets/images/game_redline_dodge_1795477217922.jpg",
-    "iframe": "<iframe src=\"/games/redline-dodge.html\" title=\"Redline Dodge\" allowfullscreen loading=\"lazy\"></iframe>",
+    "thumbnail": "./src/assets/images/game_redline_dodge_1795477217922.jpg",
+    "iframe": "<iframe src=\"./games/redline-dodge.html\" title=\"Redline Dodge\" allowfullscreen loading=\"lazy\"></iframe>",
     "featured": true
   },
   {
@@ -25,8 +25,8 @@
     "category": "Arcade",
     "controls": "Mouse or A/D / Arrows",
     "description": "Deflect the plasma core off your kinetic paddle to shatter armored crimson brick formations across stages.",
-    "thumbnail": "/src/assets/images/game_obsidian_breaker_1795477217582.jpg",
-    "iframe": "<iframe src=\"/games/obsidian-breaker.html\" title=\"Obsidian Breaker\" allowfullscreen loading=\"lazy\"></iframe>",
+    "thumbnail": "./src/assets/images/game_obsidian_breaker_1795477217582.jpg",
+    "iframe": "<iframe src=\"./games/obsidian-breaker.html\" title=\"Obsidian Breaker\" allowfullscreen loading=\"lazy\"></iframe>",
     "featured": false
   },
   {
@@ -35,8 +35,8 @@
     "category": "Puzzle",
     "controls": "WASD / Arrows / Swipe",
     "description": "Slide and merge obsidian and crimson power tiles on a 4x4 grid to forge the 2048 monolith.",
-    "thumbnail": "/src/assets/images/game_crimson_2048_1795477218245.jpg",
-    "iframe": "<iframe src=\"/games/crimson-2048.html\" title=\"Crimson 2048\" allowfullscreen loading=\"lazy\"></iframe>",
+    "thumbnail": "./src/assets/images/game_crimson_2048_1795477218245.jpg",
+    "iframe": "<iframe src=\"./games/crimson-2048.html\" title=\"Crimson 2048\" allowfullscreen loading=\"lazy\"></iframe>",
     "featured": false
   },
   {
@@ -45,8 +45,8 @@
     "category": "Strategy",
     "controls": "Mouse Aim & Click",
     "description": "Command a central defense turret against swarmers, chargers, and armored orbiters while upgrading weapons.",
-    "thumbnail": "/src/assets/images/game_iron_defense_1795477220028.jpg",
-    "iframe": "<iframe src=\"/games/iron-defense.html\" title=\"Iron Defense\" allowfullscreen loading=\"lazy\"></iframe>",
+    "thumbnail": "./src/assets/images/game_iron_defense_1795477220028.jpg",
+    "iframe": "<iframe src=\"./games/iron-defense.html\" title=\"Iron Defense\" allowfullscreen loading=\"lazy\"></iframe>",
     "featured": true
   }
 ]
