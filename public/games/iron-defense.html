@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Iron Defense</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #08080a; color: #f4f4f5;
+      font-family: system-ui, -apple-system, sans-serif;
+      user-select: none;
+    }
+    .shell {
+      position: relative; width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px;
+      gap: 10px;
+    }
+    .hud {
+      width: min(760px, 96vw);
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 10px;
+    }
+    .stats { display: flex; gap: 18px; align-items: baseline; }
+    .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #a1a1aa; margin-right: 5px; }
+    .val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .val.red { color: #ef4444; }
+    .upgrades { display: flex; gap: 8px; }
+    .upg-btn {
+      background: #141418; border: 1px solid rgba(255,255,255,0.14);
+      color: #f4f4f5; padding: 6px 10px; font-size: 12px; font-weight: 600;
+      border-radius: 6px; cursor: pointer;
+    }
+    .upg-btn:hover:not(:disabled) { border-color: #dc2626; }
+    .upg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    canvas {
+      background: #0c0c10; border: 1px solid rgba(220,38,38,0.35);
+      border-radius: 8px; max-width: 100%; max-height: calc(100vh - 96px);
+      aspect-ratio: 16 / 10; display: block; cursor: crosshair;
+    }
+    .overlay {
+      position: absolute; inset: 0; background: rgba(8,8,10,0.86);
+      display: flex; align-items: center; justify-content: center; z-index: 10;
+    }
+    .overlay.hidden { display: none; }
+    .panel {
+      width: min(390px, 90vw); background: #121216;
+      border: 1px solid rgba(220,38,38,0.45); border-radius: 10px;
+      padding: 28px; text-align: center;
+    }
+    .panel h1 { font-size: 30px; font-weight: 800; text-transform: uppercase; margin-bottom: 8px; }
+    .panel h1 span { color: #dc2626; }
+    .panel p { font-size: 14px; color: #a1a1aa; line-height: 1.5; margin-bottom: 22px; }
+    .cta {
+      background: #dc2626; color: #fff; border: none; padding: 11px 24px;
+      font-size: 14px; font-weight: 700; border-radius: 6px; cursor: pointer;
+    }
+    .cta:hover { background: #ef4444; }
+    .hint { margin-top: 14px; font-size: 12px; color: #71717a; }
+  </style>
+</head>
+<body data-state="title">
+  <div class="shell">
+    <div class="hud">
+      <div class="stats">
+        <div><span class="lbl">Core</span><span id="hpEl" class="val red">100</span></div>
+        <div><span class="lbl">Wave</span><span id="waveEl" class="val">1</span></div>
+        <div><span class="lbl">Scrap</span><span id="scrapEl" class="val">0</span></div>
+        <div><span class="lbl">Score</span><span id="scoreEl" class="val">0</span></div>
+      </div>
+      <div class="upgrades">
+        <button id="rateBtn" class="upg-btn" type="button">Fire Rate (25)</button>
+        <button id="spreadBtn" class="upg-btn" type="button">Twin Cannon (60)</button>
+        <button id="repairBtn" class="upg-btn" type="button">Repair +25 (30)</button>
+      </div>
+    </div>
+
+    <canvas id="canvas" width="760" height="475"></canvas>
+
+    <div id="titleOverlay" class="overlay">
+      <div class="panel">
+        <h1>Iron <span>Defense</span></h1>
+        <p>Hold the central bastion against swarmers, dash chargers, and armored orbiters. Spend scrap on upgrades.</p>
+        <button id="startBtn" class="cta" type="button" data-start="true">Deploy Turret</button>
+        <div class="hint">Aim with Mouse · Hold Click or Space to Fire</div>
+      </div>
+    </div>
+
+    <div id="overOverlay" class="overlay hidden">
+      <div class="panel">
+        <h1>Core <span>Destroyed</span></h1>
+        <p id="overText">Wave 1 · Final Score: 0</p>
+        <button id="retryBtn" class="cta" type="button" data-start="true">Redeploy</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const hpEl = document.getElementById('hpEl');
+    const waveEl = document.getElementById('waveEl');
+    const scrapEl = document.getElementById('scrapEl');
+    const scoreEl = document.getElementById('scoreEl');
+    const rateBtn = document.getElementById('rateBtn');
+    const spreadBtn = document.getElementById('spreadBtn');
+    const repairBtn = document.getElementById('repairBtn');
+    const titleOverlay = document.getElementById('titleOverlay');
+    const overOverlay = document.getElementById('overOverlay');
+    const overText = document.getElementById('overText');
+
+    const CX = canvas.width / 2;
+    const CY = canvas.height / 2;
+
+    let state = 'title';
+    let mouse = { x: CX + 80, y: CY, down: false };
+    let spaceDown = false;
+    let hp = 100;
+    let wave = 1;
+    let scrap = 0;
+    let score = 0;
+    let fireRateLevel = 1;
+    let twinCannon = false;
+    let cooldown = 0;
+    let spawnTimer = 0.8;
+    let waveTimer = 0;
+    let bullets = [];
+    let enemies = [];
+    let sparks = [];
+    let lastTime = performance.now();
+
+    function syncHud() {
+      hpEl.textContent = String(Math.max(0, Math.round(hp)));
+      waveEl.textContent = String(wave);
+      scrapEl.textContent = String(scrap);
+      scoreEl.textContent = String(score);
+      const rateCost = 25 * fireRateLevel;
+      rateBtn.textContent = `Fire Rate (${rateCost})`;
+      rateBtn.disabled = scrap < rateCost || fireRateLevel >= 5;
+      spreadBtn.textContent = twinCannon ? 'Twin Active' : 'Twin Cannon (60)';
+      spreadBtn.disabled = twinCannon || scrap < 60;
+      repairBtn.disabled = scrap < 30 || hp >= 100;
+    }
+
+    function startGame() {
+      hp = 100;
+      wave = 1;
+      scrap = 0;
+      score = 0;
+      fireRateLevel = 1;
+      twinCannon = false;
+      cooldown = 0;
+      spawnTimer = 0.8;
+      waveTimer = 0;
+      bullets = [];
+      enemies = [];
+      sparks = [];
+      state = 'playing';
+      document.body.dataset.state = 'playing';
+      titleOverlay.classList.add('hidden');
+      overOverlay.classList.add('hidden');
+      syncHud();
+      lastTime = performance.now();
+    }
+
+    function spawnEnemy() {
+      const edge = Math.floor(Math.random() * 4);
+      let x = 0, y = 0;
+      if (edge === 0) { x = Math.random() * canvas.width; y = -20; }
+      else if (edge === 1) { x = canvas.width + 20; y = Math.random() * canvas.height; }
+      else if (edge === 2) { x = Math.random() * canvas.width; y = canvas.height + 20; }
+      else { x = -20; y = Math.random() * canvas.height; }
+
+      const roll = Math.random();
+      let type = 'swarmer';
+      if (wave >= 2 && roll > 0.65) type = 'charger';
+      if (wave >= 3 && roll > 0.85) type = 'orbiter';
+
+      const hpBase = type === 'orbiter' ? 3 + Math.floor(wave / 2) : type === 'charger' ? 2 : 1;
+      enemies.push({
+        x, y, type,
+        hp: hpBase,
+        maxHp: hpBase,
+        r: type === 'orbiter' ? 14 : type === 'charger' ? 11 : 9,
+        speed: type === 'swarmer' ? 75 + wave * 5 : type === 'charger' ? 58 + wave * 4 : 46 + wave * 3,
+        dashTimer: 1.5 + Math.random(),
+        telegraph: 0,
+        orbitAngle: Math.atan2(y - CY, x - CX)
+      });
+    }
+
+    function fireWeapon(angle) {
+      const spd = 560;
+      if (!twinCannon) {
+        bullets.push({ x: CX + Math.cos(angle) * 20, y: CY + Math.sin(angle) * 20, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd });
+      } else {
+        for (const offset of [-0.07, 0.07]) {
+          const a = angle + offset;
+          bullets.push({ x: CX + Math.cos(a) * 20, y: CY + Math.sin(a) * 20, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd });
+        }
+      }
+    }
+
+    function update(dt) {
+      waveTimer += dt;
+      if (waveTimer >= 16) {
+        waveTimer = 0;
+        wave += 1;
+        syncHud();
+      }
+
+      spawnTimer -= dt;
+      if (spawnTimer <= 0) {
+        spawnEnemy();
+        spawnTimer = Math.max(0.32, 1.15 - wave * 0.08);
+      }
+
+      const aimAngle = Math.atan2(mouse.y - CY, mouse.x - CX);
+      cooldown -= dt;
+      if ((mouse.down || spaceDown) && cooldown <= 0) {
+        fireWeapon(aimAngle);
+        cooldown = Math.max(0.08, 0.25 - (fireRateLevel - 1) * 0.035);
+      }
+
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        if (b.x < -10 || b.x > canvas.width + 10 || b.y < -10 || b.y > canvas.height + 10) {
+          bullets.splice(i, 1);
+        }
+      }
+
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const en = enemies[i];
+        const dx = CX - en.x;
+        const dy = CY - en.y;
+        const dist = Math.hypot(dx, dy) || 1;
+
+        if (en.type === 'swarmer') {
+          en.x += (dx / dist) * en.speed * dt;
+          en.y += (dy / dist) * en.speed * dt;
+        } else if (en.type === 'charger') {
+          en.dashTimer -= dt;
+          if (en.dashTimer <= 0 && dist < 240) {
+            en.telegraph = 0.45;
+            en.dashTimer = 2.4;
+          }
+          if (en.telegraph > 0) {
+            en.telegraph -= dt;
+            if (en.telegraph <= 0) {
+              en.x += (dx / dist) * 52;
+              en.y += (dy / dist) * 52;
+            }
+          } else {
+            en.x += (dx / dist) * en.speed * dt;
+            en.y += (dy / dist) * en.speed * dt;
+          }
+        } else {
+          // Orbiter spirals inward
+          en.orbitAngle += 1.4 * dt;
+          const targetR = Math.max(0, dist - en.speed * dt);
+          en.x = CX + Math.cos(en.orbitAngle) * targetR;
+          en.y = CY + Math.sin(en.orbitAngle) * targetR;
+        }
+
+        // Hit core
+        if (Math.hypot(CX - en.x, CY - en.y) < en.r + 18) {
+          hp -= en.type === 'orbiter' ? 18 : 12;
+          enemies.splice(i, 1);
+          syncHud();
+          if (hp <= 0) {
+            state = 'gameover';
+            document.body.dataset.state = 'gameover';
+            overText.textContent = `Wave ${wave} · Final Score: ${score}`;
+            overOverlay.classList.remove('hidden');
+            return;
+          }
+          continue;
+        }
+
+        // Hit by bullets
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          const b = bullets[j];
+          if (Math.hypot(b.x - en.x, b.y - en.y) < en.r + 4) {
+            bullets.splice(j, 1);
+            en.hp -= 1;
+            if (en.hp <= 0) {
+              for (let k = 0; k < 8; k++) {
+                const a = Math.random() * Math.PI * 2;
+                sparks.push({ x: en.x, y: en.y, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90, life: 1 });
+              }
+              scrap += en.type === 'orbiter' ? 12 : en.type === 'charger' ? 8 : 5;
+              score += en.type === 'orbiter' ? 35 : en.type === 'charger' ? 20 : 10;
+              enemies.splice(i, 1);
+              syncHud();
+            }
+            break;
+          }
+        }
+      }
+
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.life -= dt * 3;
+        if (s.life <= 0) sparks.splice(i, 1);
+      }
+    }
+
+    function render(now) {
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+      if (state === 'playing') update(dt);
+
+      ctx.fillStyle = '#0c0c10';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Arena rings
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx.lineWidth = 1;
+      for (const r of [80, 160, 240]) {
+        ctx.beginPath(); ctx.arc(CX, CY, r, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      // Sparks
+      for (const s of sparks) {
+        ctx.fillStyle = `rgba(239, 68, 68, ${s.life})`;
+        ctx.fillRect(s.x - 2, s.y - 2, 4, 4);
+      }
+
+      // Bullets
+      ctx.fillStyle = '#fca5a5';
+      for (const b of bullets) {
+        ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Enemies
+      for (const en of enemies) {
+        ctx.fillStyle = en.telegraph > 0 ? '#ffffff' : en.type === 'orbiter' ? '#dc2626' : en.type === 'charger' ? '#991b1b' : '#ef4444';
+        ctx.beginPath();
+        if (en.type === 'orbiter') {
+          ctx.rect(en.x - en.r, en.y - en.r, en.r * 2, en.r * 2);
+        } else {
+          ctx.arc(en.x, en.y, en.r, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+
+      // Turret
+      const aimAngle = Math.atan2(mouse.y - CY, mouse.x - CX);
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(aimAngle);
+      ctx.fillStyle = '#1f1f26';
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(10, -4, 16, 8);
+      ctx.restore();
+
+      requestAnimationFrame(render);
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+      mouse.y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    });
+    canvas.addEventListener('mousedown', () => { mouse.down = true; });
+    window.addEventListener('mouseup', () => { mouse.down = false; });
+    window.addEventListener('keydown', (e) => {
+      if ((state === 'title' || state === 'gameover') && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        startGame();
+        return;
+      }
+      if (e.key === ' ') spaceDown = true;
+    });
+    window.addEventListener('keyup', (e) => { if (e.key === ' ') spaceDown = false; });
+    window.addEventListener('blur', () => { mouse.down = false; spaceDown = false; });
+
+    rateBtn.addEventListener('click', () => {
+      const cost = 25 * fireRateLevel;
+      if (scrap >= cost && fireRateLevel < 5) {
+        scrap -= cost;
+        fireRateLevel += 1;
+        syncHud();
+      }
+    });
+    spreadBtn.addEventListener('click', () => {
+      if (!twinCannon && scrap >= 60) {
+        scrap -= 60;
+        twinCannon = true;
+        syncHud();
+      }
+    });
+    repairBtn.addEventListener('click', () => {
+      if (scrap >= 30 && hp < 100) {
+        scrap -= 30;
+        hp = Math.min(100, hp + 25);
+        syncHud();
+      }
+    });
+
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('retryBtn').addEventListener('click', startGame);
+
+    syncHud();
+    if (new URLSearchParams(window.location.search).get('autostart') === '1') startGame();
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>

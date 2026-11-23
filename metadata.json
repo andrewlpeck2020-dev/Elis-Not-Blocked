@@ -1,0 +1,6 @@
+{
+  "name": "Crimson Arcade",
+  "description": "Black and red unblocked school games portal loading playable HTML5 games stored as iframes in a JSON library.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

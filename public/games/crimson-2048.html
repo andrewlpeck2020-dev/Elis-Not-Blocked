@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crimson 2048</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #08080a; color: #f4f4f5;
+      font-family: system-ui, -apple-system, sans-serif;
+      user-select: none;
+    }
+    .wrap {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 16px; gap: 16px;
+    }
+    .topbar {
+      width: min(400px, 92vw);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .title { font-size: 26px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; }
+    .title span { color: #dc2626; }
+    .scores { display: flex; gap: 16px; }
+    .score-box { text-align: right; }
+    .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #a1a1aa; display: block; }
+    .val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .val.red { color: #ef4444; }
+    .board {
+      position: relative;
+      width: min(400px, 92vw);
+      aspect-ratio: 1 / 1;
+      background: #121216;
+      border: 1px solid rgba(220, 38, 38, 0.35);
+      border-radius: 10px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .cell {
+      background: #1a1a20;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums;
+      transition: transform 110ms ease, background-color 110ms ease;
+    }
+    .t-0 { color: transparent; }
+    .t-2 { background: #1f1f26; color: #e4e4e7; border: 1px solid rgba(255,255,255,0.08); }
+    .t-4 { background: #27272f; color: #f4f4f5; border: 1px solid rgba(255,255,255,0.14); }
+    .t-8 { background: #450a0a; color: #fecaca; border: 1px solid rgba(239,68,68,0.35); }
+    .t-16 { background: #7f1d1d; color: #ffffff; }
+    .t-32 { background: #991b1b; color: #ffffff; }
+    .t-64 { background: #b91c1c; color: #ffffff; }
+    .t-128 { background: #dc2626; color: #ffffff; font-size: 24px; }
+    .t-256 { background: #ef4444; color: #ffffff; font-size: 24px; }
+    .t-512 { background: #f87171; color: #09090b; font-size: 24px; }
+    .t-1024 { background: #fca5a5; color: #09090b; font-size: 20px; }
+    .t-2048 { background: #ffffff; color: #dc2626; font-size: 20px; }
+    .controls {
+      width: min(400px, 92vw);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .hint { font-size: 12px; color: #a1a1aa; }
+    .btns { display: flex; gap: 8px; }
+    .btn {
+      background: #18181d; color: #f4f4f5;
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 8px 14px; font-size: 12px; font-weight: 600;
+      border-radius: 6px; cursor: pointer;
+    }
+    .btn:hover { border-color: #dc2626; }
+    .btn.primary { background: #dc2626; border-color: #dc2626; }
+    .btn.primary:hover { background: #ef4444; }
+    .overlay {
+      position: absolute; inset: 0; border-radius: 10px;
+      background: rgba(8, 8, 10, 0.88);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 12px; text-align: center; padding: 20px;
+    }
+    .overlay.hidden { display: none; }
+    .overlay h2 { font-size: 26px; font-weight: 800; text-transform: uppercase; }
+    .overlay p { font-size: 14px; color: #a1a1aa; }
+  </style>
+</head>
+<body data-state="playing">
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">Crimson <span>2048</span></div>
+      <div class="scores">
+        <div class="score-box"><span class="lbl">Score</span><span id="scoreVal" class="val red">0</span></div>
+        <div class="score-box"><span class="lbl">Best</span><span id="bestVal" class="val">0</span></div>
+      </div>
+    </div>
+
+    <div id="board" class="board" tabindex="0" aria-label="2048 Game Board"></div>
+
+    <div class="controls">
+      <span class="hint">WASD, Arrow Keys, or Swipe</span>
+      <div class="btns">
+        <button id="undoBtn" class="btn" type="button">Undo</button>
+        <button id="newBtn" class="btn primary" type="button" data-start="true">New Game</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const boardEl = document.getElementById('board');
+    const scoreEl = document.getElementById('scoreVal');
+    const bestEl = document.getElementById('bestVal');
+
+    let grid = [];
+    let score = 0;
+    let best = Number(localStorage.getItem('crimson_2048_best') || '0');
+    let prevState = null;
+    let gameOver = false;
+    let won = false;
+    let touchStart = null;
+
+    bestEl.textContent = String(best);
+
+    function emptyGrid() {
+      return Array.from({ length: 4 }, () => Array(4).fill(0));
+    }
+
+    function addRandomTile() {
+      const empties = [];
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          if (grid[r][c] === 0) empties.push({ r, c });
+        }
+      }
+      if (empties.length === 0) return;
+      const pick = empties[Math.floor(Math.random() * empties.length)];
+      grid[pick.r][pick.c] = Math.random() < 0.9 ? 2 : 4;
+    }
+
+    function initGame() {
+      grid = emptyGrid();
+      score = 0;
+      prevState = null;
+      gameOver = false;
+      won = false;
+      document.body.dataset.state = 'playing';
+      addRandomTile();
+      addRandomTile();
+      render();
+    }
+
+    function slideLine(line) {
+      const filtered = line.filter(v => v !== 0);
+      const result = [];
+      let gained = 0;
+      for (let i = 0; i < filtered.length; i++) {
+        if (i + 1 < filtered.length && filtered[i] === filtered[i + 1]) {
+          const merged = filtered[i] * 2;
+          result.push(merged);
+          gained += merged;
+          if (merged === 2048) won = true;
+          i++;
+        } else {
+          result.push(filtered[i]);
+        }
+      }
+      while (result.length < 4) result.push(0);
+      return { result, gained };
+    }
+
+    function canMove() {
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          if (grid[r][c] === 0) return true;
+          if (r < 3 && grid[r][c] === grid[r + 1][c]) return true;
+          if (c < 3 && grid[r][c] === grid[r][c + 1]) return true;
+        }
+      }
+      return false;
+    }
+
+    function move(dir) {
+      if (gameOver) return;
+      const snapshot = grid.map(row => [...row]);
+      const prevScore = score;
+      let moved = false;
+
+      if (dir === 'left' || dir === 'right') {
+        for (let r = 0; r < 4; r++) {
+          const line = dir === 'right' ? [...grid[r]].reverse() : [...grid[r]];
+          const { result, gained } = slideLine(line);
+          const finalRow = dir === 'right' ? result.reverse() : result;
+          if (finalRow.some((v, idx) => v !== grid[r][idx])) moved = true;
+          grid[r] = finalRow;
+          score += gained;
+        }
+      } else {
+        for (let c = 0; c < 4; c++) {
+          const col = [grid[0][c], grid[1][c], grid[2][c], grid[3][c]];
+          const line = dir === 'down' ? [...col].reverse() : col;
+          const { result, gained } = slideLine(line);
+          const finalCol = dir === 'down' ? result.reverse() : result;
+          for (let r = 0; r < 4; r++) {
+            if (finalCol[r] !== grid[r][c]) moved = true;
+            grid[r][c] = finalCol[r];
+          }
+          score += gained;
+        }
+      }
+
+      if (!moved) return;
+
+      prevState = { grid: snapshot, score: prevScore };
+      addRandomTile();
+
+      if (score > best) {
+        best = score;
+        localStorage.setItem('crimson_2048_best', String(best));
+      }
+
+      if (!canMove()) {
+        gameOver = true;
+        document.body.dataset.state = 'gameover';
+      }
+      render();
+    }
+
+    function render() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          const val = grid[r][c];
+          const div = document.createElement('div');
+          const cls = val <= 2048 ? `t-${val}` : 't-2048';
+          div.className = `cell ${cls}`;
+          div.textContent = val > 0 ? String(val) : '';
+          boardEl.appendChild(div);
+        }
+      }
+
+      if (gameOver) {
+        const ov = document.createElement('div');
+        ov.className = 'overlay';
+        ov.innerHTML = `<h2>${won ? '2048 Forged' : 'No Moves Left'}</h2><p>Final Score: ${score}</p><button class="btn primary" id="ovReset">Play Again</button>`;
+        boardEl.appendChild(ov);
+        document.getElementById('ovReset').addEventListener('click', initGame);
+      }
+
+      scoreEl.textContent = String(score);
+      bestEl.textContent = String(best);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'arrowleft' || k === 'a') { e.preventDefault(); move('left'); }
+      else if (k === 'arrowright' || k === 'd') { e.preventDefault(); move('right'); }
+      else if (k === 'arrowup' || k === 'w') { e.preventDefault(); move('up'); }
+      else if (k === 'arrowdown' || k === 's') { e.preventDefault(); move('down'); }
+    });
+
+    boardEl.addEventListener('touchstart', (e) => {
+      if (e.touches[0]) touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }, { passive: true });
+
+    boardEl.addEventListener('touchend', (e) => {
+      if (!touchStart || !e.changedTouches[0]) return;
+      const dx = e.changedTouches[0].clientX - touchStart.x;
+      const dy = e.changedTouches[0].clientY - touchStart.y;
+      touchStart = null;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+      if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left');
+      else move(dy > 0 ? 'down' : 'up');
+    });
+
+    document.getElementById('undoBtn').addEventListener('click', () => {
+      if (!prevState) return;
+      grid = prevState.grid.map(r => [...r]);
+      score = prevState.score;
+      prevState = null;
+      gameOver = false;
+      document.body.dataset.state = 'playing';
+      render();
+    });
+
+    document.getElementById('newBtn').addEventListener('click', initGame);
+    initGame();
+  </script>
+</body>
+</html>

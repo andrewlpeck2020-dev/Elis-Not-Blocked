@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redline Dodge</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #08080a; color: #f4f4f5;
+      font-family: system-ui, -apple-system, sans-serif;
+      user-select: none;
+    }
+    .shell {
+      position: relative; width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center; padding: 14px;
+    }
+    .hud {
+      position: absolute; top: 14px; left: 20px; right: 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      pointer-events: none; z-index: 5;
+    }
+    .stats { display: flex; gap: 20px; }
+    .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #a1a1aa; margin-right: 6px; }
+    .val { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .val.red { color: #ef4444; }
+    .btn {
+      pointer-events: auto; background: #141418;
+      border: 1px solid rgba(255,255,255,0.12); color: #f4f4f5;
+      padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer;
+    }
+    .btn:hover { border-color: #dc2626; }
+    canvas {
+      background: #0c0c10; border: 1px solid rgba(220,38,38,0.35);
+      border-radius: 8px; max-width: 100%; max-height: calc(100vh - 80px);
+      aspect-ratio: 16 / 10; display: block;
+    }
+    .overlay {
+      position: absolute; inset: 0; background: rgba(8,8,10,0.86);
+      display: flex; align-items: center; justify-content: center; z-index: 10;
+    }
+    .overlay.hidden { display: none; }
+    .panel {
+      width: min(380px, 90vw); background: #121216;
+      border: 1px solid rgba(220,38,38,0.45); border-radius: 10px;
+      padding: 28px; text-align: center;
+    }
+    .panel h1 { font-size: 30px; font-weight: 800; text-transform: uppercase; margin-bottom: 8px; }
+    .panel h1 span { color: #dc2626; }
+    .panel p { font-size: 14px; color: #a1a1aa; line-height: 1.5; margin-bottom: 22px; }
+    .cta {
+      background: #dc2626; color: #fff; border: none; padding: 11px 24px;
+      font-size: 14px; font-weight: 700; border-radius: 6px; cursor: pointer;
+    }
+    .cta:hover { background: #ef4444; }
+    .hint { margin-top: 14px; font-size: 12px; color: #71717a; }
+  </style>
+</head>
+<body data-state="title">
+  <div class="shell">
+    <div class="hud">
+      <div class="stats">
+        <div><span class="lbl">Score</span><span id="scoreEl" class="val red">0</span></div>
+        <div><span class="lbl">Best</span><span id="bestEl" class="val">0</span></div>
+        <div><span class="lbl">Velocity</span><span id="velEl" class="val">100%</span></div>
+      </div>
+      <div>
+        <button id="pauseBtn" class="btn" type="button">Pause [P]</button>
+      </div>
+    </div>
+
+    <canvas id="canvas" width="720" height="450"></canvas>
+
+    <div id="titleOverlay" class="overlay">
+      <div class="panel">
+        <h1>Redline <span>Dodge</span></h1>
+        <p>Pilot the delta interceptor between falling obsidian blocks. Speed intensifies every second.</p>
+        <button id="startBtn" class="cta" type="button" data-start="true">Start Run</button>
+        <div class="hint">A / D or Left / Right Arrows · Hold Shift for precision slow</div>
+      </div>
+    </div>
+
+    <div id="pauseOverlay" class="overlay hidden">
+      <div class="panel">
+        <h1>Paused</h1>
+        <p>Hold position. Ready to resume?</p>
+        <button id="resumeBtn" class="cta" type="button">Resume</button>
+      </div>
+    </div>
+
+    <div id="overOverlay" class="overlay hidden">
+      <div class="panel">
+        <h1>Hull <span>Breached</span></h1>
+        <p id="summaryText">Score: 0 · Best: 0</p>
+        <button id="retryBtn" class="cta" type="button" data-start="true">Try Again</button>
+        <div class="hint">Press Space or Enter to launch again</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('scoreEl');
+    const bestEl = document.getElementById('bestEl');
+    const velEl = document.getElementById('velEl');
+    const summaryText = document.getElementById('summaryText');
+    const titleOverlay = document.getElementById('titleOverlay');
+    const pauseOverlay = document.getElementById('pauseOverlay');
+    const overOverlay = document.getElementById('overOverlay');
+
+    let best = Number(localStorage.getItem('redline_dodge_best') || '0');
+    bestEl.textContent = String(best);
+
+    let state = 'title';
+    let keys = new Set();
+    let player = { x: 360, y: 390, w: 28, h: 32 };
+    let obstacles = [];
+    let trails = [];
+    let score = 0;
+    let elapsed = 0;
+    let spawnTimer = 0;
+    let lastTime = performance.now();
+
+    function setState(next) {
+      state = next;
+      document.body.dataset.state = next;
+      titleOverlay.classList.toggle('hidden', next !== 'title');
+      pauseOverlay.classList.toggle('hidden', next !== 'paused');
+      overOverlay.classList.toggle('hidden', next !== 'gameover');
+    }
+
+    function resetRun() {
+      player = { x: canvas.width / 2, y: canvas.height - 54, w: 28, h: 30 };
+      obstacles = [];
+      trails = [];
+      score = 0;
+      elapsed = 0;
+      spawnTimer = 0.2;
+      keys.clear();
+      scoreEl.textContent = '0';
+      velEl.textContent = '100%';
+    }
+
+    function startRun() {
+      resetRun();
+      lastTime = performance.now();
+      setState('playing');
+    }
+
+    function spawnObstacle(speedMult) {
+      const w = 44 + Math.random() * 88;
+      const x = Math.random() * (canvas.width - w);
+      const isCrimson = Math.random() < 0.35;
+      obstacles.push({
+        x, y: -40, w, h: 20 + Math.random() * 14,
+        vy: (210 + Math.random() * 120) * speedMult,
+        crimson: isCrimson
+      });
+    }
+
+    function update(dt) {
+      elapsed += dt;
+      const speedMult = 1 + Math.min(2.2, elapsed * 0.045);
+      const precision = keys.has('Shift') ? 0.5 : 1;
+      const moveSpeed = 380 * precision;
+
+      if (keys.has('ArrowLeft') || keys.has('a') || keys.has('A')) player.x -= moveSpeed * dt;
+      if (keys.has('ArrowRight') || keys.has('d') || keys.has('D')) player.x += moveSpeed * dt;
+      player.x = Math.max(20, Math.min(canvas.width - 20, player.x));
+
+      trails.push({ x: player.x, y: player.y + 14, life: 1 });
+      if (trails.length > 20) trails.shift();
+      trails.forEach(t => { t.y += 140 * dt; t.life -= dt * 3; });
+
+      spawnTimer -= dt;
+      if (spawnTimer <= 0) {
+        spawnObstacle(speedMult);
+        spawnTimer = Math.max(0.18, 0.56 - elapsed * 0.008);
+      }
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const ob = obstacles[i];
+        ob.y += ob.vy * dt;
+
+        // AABB vs Triangle approximate hitbox
+        const px1 = player.x - 10, px2 = player.x + 10;
+        const py1 = player.y - 12, py2 = player.y + 12;
+        if (px2 > ob.x && px1 < ob.x + ob.w && py2 > ob.y && py1 < ob.y + ob.h) {
+          if (score > best) {
+            best = score;
+            localStorage.setItem('redline_dodge_best', String(best));
+          }
+          bestEl.textContent = String(best);
+          summaryText.textContent = `Score: ${score} · Best: ${best}`;
+          setState('gameover');
+          return;
+        }
+
+        if (ob.y > canvas.height + 40) {
+          obstacles.splice(i, 1);
+          score += 5;
+        }
+      }
+
+      score = Math.max(score, Math.floor(elapsed * 10));
+      scoreEl.textContent = String(score);
+      velEl.textContent = `${Math.round(speedMult * 100)}%`;
+    }
+
+    function render(now) {
+      const rawDt = (now - lastTime) / 1000;
+      lastTime = now;
+      const dt = Math.min(rawDt, 0.05);
+
+      if (state === 'playing') {
+        update(dt);
+      }
+
+      ctx.fillStyle = '#0c0c10';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Speed lane lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 1;
+      for (let x = 90; x < canvas.width; x += 90) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+      }
+
+      // Trails
+      for (const t of trails) {
+        if (t.life <= 0) continue;
+        ctx.fillStyle = `rgba(220, 38, 38, ${t.life * 0.6})`;
+        ctx.fillRect(t.x - 3, t.y, 6, 8);
+      }
+
+      // Obstacles
+      for (const ob of obstacles) {
+        ctx.fillStyle = ob.crimson ? '#991b1b' : '#1b1b22';
+        ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+        ctx.strokeStyle = ob.crimson ? '#ef4444' : 'rgba(255,255,255,0.16)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(ob.x, ob.y, ob.w, ob.h);
+      }
+
+      // Player delta ship
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y - 16);
+      ctx.lineTo(player.x + 14, player.y + 14);
+      ctx.lineTo(player.x, player.y + 8);
+      ctx.lineTo(player.x - 14, player.y + 14);
+      ctx.closePath();
+      ctx.fill();
+
+      requestAnimationFrame(render);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if ((state === 'title' || state === 'gameover') && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        startRun();
+        return;
+      }
+      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+        if (state === 'playing') setState('paused');
+        else if (state === 'paused') { lastTime = performance.now(); setState('playing'); }
+        return;
+      }
+      keys.add(e.key);
+    });
+    window.addEventListener('keyup', (e) => keys.delete(e.key));
+    window.addEventListener('blur', () => keys.clear());
+
+    document.getElementById('startBtn').addEventListener('click', startRun);
+    document.getElementById('retryBtn').addEventListener('click', startRun);
+    document.getElementById('resumeBtn').addEventListener('click', () => {
+      lastTime = performance.now();
+      setState('playing');
+    });
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+      if (state === 'playing') setState('paused');
+      else if (state === 'paused') { lastTime = performance.now(); setState('playing'); }
+    });
+
+    resetRun();
+    if (new URLSearchParams(window.location.search).get('autostart') === '1') startRun();
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
