@@ -15,17 +15,31 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
       {
-        name: 'copy-unbundled-src-assets',
+        name: 'copy-static-site-assets',
         apply: 'build',
         closeBundle(error) {
           if (error) {
             return;
           }
           const distDir = path.resolve(__dirname, 'dist');
+          if (!fs.existsSync(distDir)) {
+            return;
+          }
+
           const srcAssets = path.resolve(__dirname, 'src/assets');
           const distAssets = path.resolve(distDir, 'src/assets');
-          if (fs.existsSync(distDir) && fs.existsSync(srcAssets)) {
+          if (fs.existsSync(srcAssets)) {
             fs.cpSync(srcAssets, distAssets, {recursive: true, force: true});
+          }
+
+          const rootGamesJson = path.resolve(__dirname, 'games.json');
+          if (fs.existsSync(rootGamesJson)) {
+            fs.copyFileSync(rootGamesJson, path.resolve(distDir, 'games.json'));
+          }
+
+          const rootGamesDir = path.resolve(__dirname, 'games');
+          if (fs.existsSync(rootGamesDir)) {
+            fs.cpSync(rootGamesDir, path.resolve(distDir, 'games'), {recursive: true, force: true});
           }
         },
       },

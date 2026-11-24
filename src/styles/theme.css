@@ -10,10 +10,17 @@
   --text-muted: #71717a;
   --accent-crimson: #dc2626;
   --accent-crimson-hover: #ef4444;
+  --accent-crimson-light: #f87171;
   --accent-crimson-deep: #991b1b;
   --font-display: 'Barlow Condensed', system-ui, sans-serif;
   --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 html {
@@ -32,6 +39,27 @@ body {
   letter-spacing: 0.01em;
 }
 
+h1,
+h2,
+h3,
+p,
+ul {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 .font-display {
   font-family: var(--font-display);
 }
@@ -43,6 +71,22 @@ body {
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.hidden {
+  display: none !important;
 }
 
 /* Custom black & crimson scrollbar */
